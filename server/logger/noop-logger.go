@@ -1,8 +1,11 @@
 package logger
 
+import "fmt"
+
 type NoopLogger struct{}
 
 func NewNoopLogger() *NoopLogger {
+	fmt.Println("[NoopLogger] Logging disabled")
 	return &NoopLogger{}
 }
 

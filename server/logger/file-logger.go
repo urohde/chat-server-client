@@ -16,10 +16,11 @@ func NewFileLogger(filename string) (*FileLogger, error) {
 	}
 
 	fmt.Printf("[FileLogger] Logging to file: %s\n", filename)
-	return &FileLogger{file}, nil
+	return &FileLogger{file: file}, nil
 }
 
 func (l *FileLogger) Write(msg []byte) error {
+	msg = append(msg, '\n')
 	_, err := l.file.Write(msg)
 	if err != nil {
 		return fmt.Errorf("error writing to log file: %w", err)

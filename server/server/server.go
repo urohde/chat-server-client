@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type client interface {
@@ -34,6 +36,7 @@ func NewServer(logger logger) *Server {
 		logger:     logger,
 	}
 }
+
 func (s *Server) Broadcast(msg []byte) {
 	messageWithTimestamp := append([]byte(fmt.Sprintf("[%s] ", time.Now().Format(time.RFC3339))), msg...)
 	err := s.logger.Write(messageWithTimestamp)
@@ -91,13 +94,12 @@ func (s *Server) listen(c client) {
 	for {
 		_, msg, err := c.ReadMessage()
 		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		if string(msg) == "bye" {
-			fmt.Printf("Client [%s] requested to disconnect\n", c.GetName())
-			s.Unregister(c)
+			if websocket.IsCloseError(err, websocket.CloseNormalClosure) {
+				s.Unregister(c)
+				s.Broadcast([]byte(fmt.Sprintf("User [%s] disconnected", c.GetName())))
+			} else {
+				fmt.Printf("Error reading message from client [%s]: %v\n", c.GetName(), err)
+			}
 			return
 		}
 

@@ -11,21 +11,27 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+type Logger interface {
+	Write([]byte) (error)
+	Close() error
+}
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Missing log file path")
-		os.Exit(1)
+	var l Logger
+	var err error
+	logFile := os.Getenv("LOG_FILE")
+	if logFile == "" {
+		l = logger.NewNoopLogger()
+	} else {
+		l, err = logger.NewFileLogger(logFile)
+		if err != nil {
+			fmt.Println("Error creating logger: ", err)
+			return
+		}
+		defer l.Close()
 	}
 
-	// logger, err := logger.NewNoopLogger()
-	logger, err := logger.NewFileLogger(os.Args[1])
-	if err != nil {
-		fmt.Println("Error creating logger: ", err)
-		return
-	}
-	defer logger.Close()
-
-	chatServer := server.NewServer(logger)
+	chatServer := server.NewServer(l)
 	go chatServer.Start()
 
 	upgrader := websocket.Upgrader{
@@ -50,6 +56,11 @@ func main() {
 		chatServer.Register(client)
 	})
 
-	fmt.Println("Server running on port 8080")
-	http.ListenAndServe(":8080", nil)
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	fmt.Printf("Server running on port %s\n", port)
+	http.ListenAndServe(":"+port, nil)
 }

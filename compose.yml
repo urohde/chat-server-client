@@ -1,0 +1,32 @@
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+      args:
+        - PORT=8080
+    environment:
+      - PORT=8080
+      - LOG_FILE=log.tmp
+    volumes:
+      - ./logs:/app
+  client_one:
+    build: 
+      context: ./client
+      dockerfile: Dockerfile
+    environment:
+      - HOST=server:8080
+      - USERNAME=one
+    links:
+      - server
+    stdin_open: true
+  client_two:
+    build: 
+      context: ./client
+      dockerfile: Dockerfile
+    environment:
+      - HOST=server:8080
+      - USERNAME=two
+    links:
+      - server
+    stdin_open: true

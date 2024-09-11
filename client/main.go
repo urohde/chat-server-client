@@ -3,10 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"io"
 	"net/url"
 	"os"
+	"os/signal"
+	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 var in = bufio.NewReader(os.Stdin)
@@ -27,18 +30,23 @@ func getInput(input chan string) {
 }
 
 func main() {
-	if len(os.Args) < 3 {
-		fmt.Println("Please provide a URL and a username")
-		os.Exit(1)
+	username := os.Getenv("USERNAME")
+	if username == "" {
+		username = "anonymous"
+	}
+
+	host := os.Getenv("HOST")
+	if host == "" {
+		host = "localhost:8080"
 	}
 
 	input := make(chan string, 1)
 	go getInput(input)
 
 	query := url.Values{}
-	query.Add("username", os.Args[2])
+	query.Add("username", username)
 
-	URL := url.URL{Scheme: "ws", Host: os.Args[1], Path: "/", RawQuery: query.Encode()}
+	URL := url.URL{Scheme: "ws", Host: host, Path: "/", RawQuery: query.Encode()}
 	conn, _, err := websocket.DefaultDialer.Dial(URL.String(), nil)
 	if err != nil {
 		fmt.Println("Error connecting to server: ", err)
@@ -48,13 +56,16 @@ func main() {
 
 	done := make(chan struct{})
 
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt)
+
 	go func() {
 		defer close(done)
 		for {
 			_, message, err := conn.ReadMessage()
 			if err != nil {
 				if err == io.EOF || websocket.IsCloseError(err, websocket.CloseNormalClosure) {
-					fmt.Println("Connection closed by server")
+					fmt.Println("Connection closed")
 				} else {
 					fmt.Println("Error reading message: ", err)
 				}
@@ -75,6 +86,18 @@ func main() {
 				fmt.Println("Error sending message: ", err)
 				return
 			}
+			go getInput(input)
+		case <-interrupt:
+			fmt.Println("Interrupt signal received")
+			err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+			if err != nil {
+				fmt.Println("Error sending close message: ", err)
+			}
+			select {
+			case <-done:
+			case <-time.After(2 * time.Second):
+			}
+			return
 		}
 	}
 }
